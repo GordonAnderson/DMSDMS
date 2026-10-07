@@ -1,6 +1,6 @@
 # DMSDMS firmware test plan
 
-Bench test of the PlatformIO port (version 1.3) against the expected behavior of the Arduino firmware. 
+Bench test of the PlatformIO port (version 1.4) against the expected behavior of the Arduino firmware. 
 Test one board at a time. Copy the record block below for each run and tick the items as you go.
 
 The firmware has not been run on hardware since the port. The items are ordered by risk: first what the 
@@ -8,7 +8,7 @@ port could have broken (pins, TWI, flash), then each module, then MIPS integrati
 
 ```
 Board:            CVBIAS / WAVEFORMS
-Firmware file:    firmware/DAQ______v1.3.bin
+Firmware file:    firmware/DAQ______v1.4.bin
 Board serial no.:
 Tester / date:
 TWI address jumpers:
@@ -29,8 +29,8 @@ looks different from the old Arduino firmware, even if it still works.
 
 ## 1. Both variants: what the port could have broken
 
-- [ ] **1.1 Boot and identity.** `GVER` returns `DAQcvbias version 1.3, October 6, 2026` or
-      `DAQwaveforms version 1.3, October 6, 2026`. `pio device list` (or macOS System Information) shows the 
+- [ ] **1.1 Boot and identity.** `GVER` returns `DAQcvbias version 1.4, October 7, 2026` or
+      `DAQwaveforms version 1.4, October 7, 2026`. Do not use the v1.3 files, they were built with the wrong USB stack. `pio device list` (or macOS System Information) shows the 
       product name `CVBIAS` or `WAVEFORMS` and the manufacturer `GAA Custom Electronics, LLC`.
 - [ ] **1.2 Command list.** `GCMDS` lists the commands for this variant only (`SCV` etc. on CVBIAS, `SFBFREQ` etc.
       on WAVEFORMS, `RENV` on CVBIAS only).
@@ -113,6 +113,17 @@ CVBIAS first (serial scan commands exist only there).
 - [ ] **4.5 TWI scan.** From MIPS start a scan with `TWI_SET_STEPSTR`, read back the scan points and compare with 
       the serial scan. `TWI_SET_STEPSTP` stops it mid-scan and the values restore.
 - [ ] **4.6 WAVEFORMS scan (TWI).** Same for a Vrf scan (`TWI_SET_VRF_START` / `_END`).
+- [ ] **4.7 Channel 2 noise while scanning channel 1 (fixed in 1.4).** First record `GFBCVSTRT,2` and `GFBCVEND,2`.
+      With channel 2 **disabled** and a range set on it (start not equal to end), scan channel 1: channel 2's outputs
+      must stay at 0 V with no noise. With channel 2 **enabled** and its start equal to its end, scan channel 1:
+      channel 2's outputs must stay steady. If noise remains in either case, note its rate on the scope (step rate,
+      every 25 mS, or random), then:
+      - step channel 1 by hand with `SCV,1,<value>` (no scan). Glitches on channel 2 point to analog coupling 
+        (shared AD5592 reference) rather than the firmware.
+      - repeat the scan with `SELTMTRM4,TRUE`. If the noise drops, the electrometer AD5592 conversions during the scan
+        are disturbing the shared 1.25 V reference.
+- [ ] **4.8 Stop restores both channels (known issue).** Change channel 2's CV during a channel 1 scan. When the scan
+      ends channel 2's CV is set back to its value from the start of the scan (see todo.md, not fixed yet).
 
 ## 5. TWI input checks (test program, not the real MIPS code)
 
@@ -128,6 +139,10 @@ CVBIAS first (serial scan commands exist only there).
       confirm readbacks stay stable and nothing resets.
 
 ## Things to watch for
+
+- USB serial: 1.4 uses the Arduino USB stack, as the original firmware did (1.3 used TinyUSB by mistake). Note any
+  difference in how the port appears or behaves on the host, and whether scans at short step times stay reliable
+  over USB.
 
 These are known open items from the code review (see `todo.md`). Note whether you see them:
 

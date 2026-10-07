@@ -84,9 +84,16 @@
 //        bias DAC), is initialised at startup, and the AD5592 SPI settings are restored after
 //        it is read. RENV returns a NAK if no sensor is found.
 //      - Scan step duration is limited to 500mS, the scan timer is not accurate for longer times.
+// 1.4, October 7, 2026
+//    - Test build, not yet verified on hardware.
+//    - USB: back to the Arduino USB stack used by the Arduino IDE build. Version 1.3 was built with
+//      TinyUSB by mistake (-DUSE_TINYUSB), which changes how the USB serial port behaves.
+//    - Scanning no longer drives a disabled channel. A channel with a CV start/end range set was
+//      scanned even when disabled, while Update set its outputs back to 0 V every 25 mS, which showed
+//      as noise on that channel (seen on channel 2 while scanning channel 1).
 
 #if FIRMWARE == WAVEFORMS
-const char   Version[] PROGMEM = "DAQwaveforms version 1.3, October 6, 2026";
+const char   Version[] PROGMEM = "DAQwaveforms version 1.4, October 7, 2026";
 DMSdata       daq_Rev_1 = 
 {
   sizeof(DMSdata),"WAVEFORMS", 1,
@@ -121,7 +128,7 @@ DMSdata       daq_Rev_1 =
 #endif
 
 #if FIRMWARE == CVBIAS
-const char   Version[] PROGMEM = "DAQcvbias version 1.3, October 6, 2026";
+const char   Version[] PROGMEM = "DAQcvbias version 1.4, October 7, 2026";
 DMSdata       daq_Rev_1 = 
 {
   sizeof(DMSdata),"CVBIAS", 1,
@@ -1169,8 +1176,10 @@ void StopScan(void)
   }
 }
 
-// This function calculates the CVs for this point and
-// sets the values. The electrometer values are also updated
+// This function calculates the CVs (or Vrfs) for this point and sets the values. Every channel 
+// with a scan range (start not equal to end) is scanned, so a scan of channel 1 also scans 
+// channel 2 if channel 2 has a range set. The range is saved in FLASH. The electrometer values 
+// are also updated
 void SetScanParameters(int ScanPoint)
 {
   float CVss,VRFss;
@@ -1178,7 +1187,10 @@ void SetScanParameters(int ScanPoint)
   for(int ch=0;ch<2;ch++)
   {
     #if FIRMWARE == CVBIAS
-    if(dmsdata.channel[ch].CVend != dmsdata.channel[ch].CVstart)
+    // A channel is scanned if it is enabled and its start and end CV differ. A disabled channel
+    // is skipped, otherwise its outputs would be driven by the scan and set back to zero by
+    // Update every 25mS.
+    if(dmsdata.channel[ch].Enable && (dmsdata.channel[ch].CVend != dmsdata.channel[ch].CVstart))
     {
       CVss = (dmsdata.channel[ch].CVend - dmsdata.channel[ch].CVstart) / dmsdata.Steps;
       dmsdata.channel[ch].CV = dmsdata.channel[ch].CVstart + CVss * ScanPoint;

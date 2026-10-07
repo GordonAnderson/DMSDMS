@@ -48,15 +48,16 @@ in the VS Code status bar. With both boards connected, name the port so the uplo
 erases the settings stored in FLASH, so save them again afterward.
 
 Output goes to `.pio/build/<environment>/`. After each build the `.bin` is also copied to the `firmware/` 
-folder, named with the firmware and its version, for example `firmware/DAQcvbias_v1.3.bin` and
-`firmware/DAQwaveforms_v1.3.bin`. The name and version come from the `Version` string in `src/DMSDMSMB.cpp`
-(`"DAQcvbias version 1.3, October 6, 2026"`), so to make a new release change the version there, update the
+folder, named with the firmware and its version, for example `firmware/DAQcvbias_v1.4.bin` and
+`firmware/DAQwaveforms_v1.4.bin`. The name and version come from the `Version` string in `src/DMSDMSMB.cpp`
+(`"DAQcvbias version 1.4, October 7, 2026"`), so to make a new release change the version there, update the
 version history comment above it, and build. A build without a version change replaces the file with the same name.
 The copy is done by `copy_firmware.py`, which fails the build if it can't find the version string.
 
-Build flags: `-DUSE_TINYUSB` is required by the Adafruit SAMD core for the Feather M4 (the Arduino IDE
-sets it through its USB Stack menu). Libraries (ArduinoThread, FlashStorage, Adafruit BME280) are
-fetched by PlatformIO from `lib_deps`.
+USB stack: the firmware uses the Arduino USB stack, as the Arduino IDE build did. `platformio.ini` sets
+`lib_ignore = Adafruit TinyUSB Library` because the Wire, SPI and ZeroDMA libraries include TinyUSB inside 
+`#ifdef USE_TINYUSB`, which PlatformIO's library finder does not evaluate. Do not add `-DUSE_TINYUSB`. Libraries
+(ArduinoThread, FlashStorage, Adafruit BME280) are fetched by PlatformIO from `lib_deps`.
 
 ## How the firmware works
 
@@ -159,6 +160,11 @@ is changed. Scanning uses the table.
 A scan steps the CV (CVBIAS) or the Vrf (WAVEFORMS) from a start to an end value in `Steps` equal steps. 
 It is advanced either by a timer (TC5, `StepDuration` mS per step) or by a rising edge on an external pin
 (`EnableExtStep`, `ExtAdvInput`).
+
+**Which channels are scanned.** There is no channel argument: every channel that has a scan range (start not
+equal to end) is scanned, so a scan intended for channel 1 also scans channel 2 if channel 2 has a range set.
+The ranges are saved in FLASH, so a range left on a channel from earlier work stays set. A disabled channel is
+not scanned (CVBIAS, since version 1.4). To scan one channel only, set the other channel's start and end equal.
 
 At each step the new values are set, the electrometer is read (CVBIAS), and a scan point is reported:
 
