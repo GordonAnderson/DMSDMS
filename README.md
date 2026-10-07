@@ -338,6 +338,7 @@ Run `SAVE` after calibrating.
 | `copy_firmware.py` | Post build script that copies the `.bin` to `firmware/` with the version in the name |
 | `firmware/` | Released `.bin` files |
 | `todo.md` | Open issues from the code review |
+| `TESTING.md` | Bench test plan with a results record |
 
 ## Project-local copies of framework files
 
